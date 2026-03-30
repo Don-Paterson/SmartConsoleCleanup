@@ -30,4 +30,4 @@ try {
 
 Write-Host "Running cleanup (NukeAll mode)..." -ForegroundColor Yellow
 
-& ([scriptblock]::Create($script)) -NukeAll
+& ([scriptblock]::Create($script)) -NukeAll -NukeOnly

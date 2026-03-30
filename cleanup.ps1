@@ -9,10 +9,12 @@
 #   Dry run:       .\cleanup.ps1 -DryRun
 #   Silent dry:    .\cleanup.ps1 -NukeAll -DryRun
 #   Keep version:  .\cleanup.ps1 -ProtectedVersion "R82"
+#   Skip uninstallers: .\cleanup.ps1 -NukeAll -NukeOnly
 
 [CmdletBinding()]
 param(
     [switch]$NukeAll,
+    [switch]$NukeOnly,   # Skip normal uninstallers entirely; go straight to nuke mode
     [switch]$DryRun,
     [string]$ProtectedVersion = "R82"
 )
@@ -240,8 +242,8 @@ foreach ($app in $apps) {
 
     $uninstallSucceeded = $false
 
-    # ── Attempt normal uninstall ──────────────────────────────────────────────
-    if ($uninstallString) {
+    # ── Attempt normal uninstall (skipped if -NukeOnly) ─────────────────────
+    if (-not $NukeOnly -and $uninstallString) {
         Log "    Uninstall string: $uninstallString"
         if ($DryRun) {
             Log "    [DryRun] Would run uninstaller"
