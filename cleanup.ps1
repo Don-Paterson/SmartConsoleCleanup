@@ -202,6 +202,18 @@ if ($NukeAll) { Log "*** NUKE ALL MODE — interactive prompts suppressed ***" }
 Log "Protected version: $ProtectedVersion"
 Log "Log file: $logFile"
 
+# ── Suppress UAC consent prompts for the duration of this script ──────────────
+# ConsentPromptBehaviorAdmin = 0 means elevate silently (no UAC dialog)
+# We restore the original value when the script exits
+$uacRegPath   = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+$uacValueName = "ConsentPromptBehaviorAdmin"
+$uacOrigValue = (Get-ItemProperty -Path $uacRegPath -Name $uacValueName -ErrorAction SilentlyContinue).$uacValueName
+
+if (-not $DryRun -and $null -ne $uacOrigValue) {
+    Set-ItemProperty -Path $uacRegPath -Name $uacValueName -Value 0 -ErrorAction SilentlyContinue
+    Log "UAC consent prompt suppressed for this session (original value: $uacOrigValue)"
+}
+
 $apps = Get-SmartConsoleApps
 
 if (-not $apps) {
@@ -236,8 +248,25 @@ foreach ($app in $apps) {
             $uninstallSucceeded = $true   # assume success in dry run
         } else {
             try {
-                Start-Process -FilePath "cmd.exe" `
-                    -ArgumentList "/c `"$uninstallString`" /quiet /norestart" `
+                # Extract the exe path from the uninstall string (may be quoted)
+                if ($uninstallString -match '^"([^"]+)"(.*)$') {
+                    $exePath  = $Matches[1]
+                    $exeArgs  = $Matches[2].Trim()
+                } else {
+                    $exePath  = $uninstallString
+                    $exeArgs  = ""
+                }
+
+                # InstallShield silent flags:
+                #   /s        = silent mode
+                #   /SMS      = don't exit until uninstall completes (stay modal)
+                #   /norestart = suppress reboot prompt
+                # These override whatever the uninstall string originally contained
+                $silentArgs = "$exeArgs /s /SMS /norestart".Trim()
+
+                Log "    Launching: $exePath $silentArgs"
+                Start-Process -FilePath $exePath `
+                    -ArgumentList $silentArgs `
                     -Wait -NoNewWindow -ErrorAction Stop
                 Log "    ✔ Uninstaller exited"
             } catch {
@@ -271,3 +300,9 @@ foreach ($app in $apps) {
 
 Log "===== SmartConsole Cleanup Completed ====="
 Log "Log saved to: $logFile"
+
+# ── Restore UAC consent prompt setting ───────────────────────────────────────
+if (-not $DryRun -and $null -ne $uacOrigValue) {
+    Set-ItemProperty -Path $uacRegPath -Name $uacValueName -Value $uacOrigValue -ErrorAction SilentlyContinue
+    Log "UAC consent prompt restored (value: $uacOrigValue)"
+}
