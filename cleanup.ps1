@@ -157,6 +157,14 @@ function Invoke-NukeMode {
         } else {
             try {
                 icacls $InstallLocation /grant "Administrators:F" /T /C | Out-Null
+
+                # Use robocopy to mirror an empty folder over the target — this handles
+                # deeply nested paths and locked subdirectories that Remove-Item chokes on
+                $emptyDir = Join-Path $env:TEMP "robocopy_empty_$([System.IO.Path]::GetRandomFileName())"
+                New-Item -ItemType Directory -Path $emptyDir -Force | Out-Null
+                robocopy $emptyDir $InstallLocation /MIR /NFL /NDL /NJH /NJS /NC /NS /NP | Out-Null
+                Remove-Item -Path $emptyDir -Force -ErrorAction SilentlyContinue
+
                 Remove-Item -LiteralPath $InstallLocation -Recurse -Force -ErrorAction Stop
                 Log "   ✔ Deleted folder: $InstallLocation"
             } catch {
